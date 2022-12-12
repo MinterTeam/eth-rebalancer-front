@@ -144,7 +144,7 @@ async function generateTx() {
 
     let data = pancake.methods.swapExactTokensForTokens(
         res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(99).divn(100),
+        toBN(res.data.toTokenAmount).muln(95).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
           if (protocol[0].toTokenAddress.toLowerCase() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") {
             acc.push("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c");
@@ -186,8 +186,8 @@ async function generateTx() {
     if (output.address.toLowerCase() === USDT_ADDRESS) {
       continue
     }
-
-    let amount = toBN(totalUSDT.value).muln(100).divn(Number(output.percentage));
+b
+    let amount = toBN(totalUSDT.value).muln(Number(output.percentage)).divn(100);
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
     let tx = USDT_ADDRESS;
@@ -199,7 +199,7 @@ async function generateTx() {
 
     let data = pancake.methods.swapExactTokensForTokens(
         res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(99).divn(100),
+        toBN(res.data.toTokenAmount).muln(95).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
           if (protocol[0].toTokenAddress.toLowerCase() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") {
             acc.push("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c");
@@ -252,6 +252,25 @@ inputs.push(
 outputs.push(
     {address: "0xf2ba89a6f9670459ed5aeefbd8db52be912228b8", percentage: "100"},
 )
+
+var saveData = (function () {
+  var a = document.createElement("a");
+  document.body.appendChild(a);
+  a.style = "display: none";
+  return function (data, fileName) {
+    var json = JSON.stringify(data),
+        blob = new Blob([json], {type: "octet/stream"}),
+        url = window.URL.createObjectURL(blob);
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+}());
+
+function save() {
+  saveData(batch, "batch.json");
+}
 </script>
 
 <template>
@@ -268,6 +287,7 @@ outputs.push(
       <div class="columns">
         <div class="column">
           <h1 class="title is-5">Inputs</h1>
+          <div class="button mb-5" @click="newInput">New input asset</div>
           <div class="field has-addons" v-for="(input, i) in inputs">
             <p class="control is-expanded">
               <input :class="{'is-danger': !checkAddress(input.address)}" class="input" v-model="input.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
@@ -283,11 +303,11 @@ outputs.push(
           <div class="notification">
             Total USDT: {{ fromWei(totalUSDT) }}
           </div>
-
-          <div class="button" @click="newInput">New input asset</div>
         </div>
         <div class="column">
           <h1 class="title is-5">Outputs</h1>
+          <div class="button mb-5" @click="newOutput">New output asset</div>
+
           <div class="field has-addons" v-for="(output, i) in outputs">
             <p class="control is-expanded">
               <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
@@ -299,8 +319,6 @@ outputs.push(
               <a class="button is-static">%</a>
             </p>
           </div>
-
-          <div class="button" @click="newOutput">New output asset</div>
         </div>
       </div>
       <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
@@ -309,7 +327,7 @@ outputs.push(
       <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate transactions</button>
       <div class="block pt-5">
         <div v-if="!loading">
-          <button class="button" @click="copy(JSON.stringify(batch, null, 2))">Copy to clipboard</button>
+          <button class="button" @click="save">Save to batch.json</button>
           <br>
           <br>
           <pre>{{ JSON.stringify(batch, null, 2) }}</pre>
