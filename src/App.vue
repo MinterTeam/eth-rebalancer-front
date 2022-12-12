@@ -10,6 +10,8 @@ const instance = getCurrentInstance();
 const USDT_ADDRESS = "0x55d398326f99059ff775485246999027b3197955";
 const PANCAKE_ADDRESS = "0x10ed43c718714eb63d5aa57b78b54704e256024e";
 const slippage = "0.5";
+const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 
 const rpcURL = 'https://bsc.getblock.io/a215c97d-a4d7-41b9-b94d-da3b1ac94c18/mainnet/'
 const web3 = new Web3(rpcURL)
@@ -103,7 +105,7 @@ let txs = reactive([]);
 let batch = reactive({
   "version": "1.0",
   "chainId": "56",
-  "createdAt": 1670847759533,
+  "createdAt": Math.floor(Date.now() / 1000),
   "meta": {
     "name": "Transactions Batch",
     "description": "",
@@ -146,8 +148,8 @@ async function generateTx() {
         res.data.fromTokenAmount,
         toBN(res.data.toTokenAmount).muln(95).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
-          if (protocol[0].toTokenAddress.toLowerCase() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") {
-            acc.push("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c");
+          if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
+            acc.push(WBNB_ADDRESS);
             return acc
           }
           acc.push(protocol[0].toTokenAddress);
@@ -166,7 +168,7 @@ async function generateTx() {
     })
 
     batch.transactions.push({
-      "to": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+      "to": PANCAKE_ADDRESS,
       "value": "0",
       "data": data,
       "contractMethod": null,
@@ -186,8 +188,9 @@ async function generateTx() {
     if (output.address.toLowerCase() === USDT_ADDRESS) {
       continue
     }
-b
-    let amount = toBN(totalUSDT.value).muln(Number(output.percentage)).divn(100);
+
+    let amount = toBN(totalUSDT.value).muln(99).divn(100).muln(Number(output.percentage)).divn(100);
+
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
     let tx = USDT_ADDRESS;
@@ -201,8 +204,8 @@ b
         res.data.fromTokenAmount,
         toBN(res.data.toTokenAmount).muln(95).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
-          if (protocol[0].toTokenAddress.toLowerCase() == "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee") {
-            acc.push("0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c");
+          if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
+            acc.push(WBNB_ADDRESS);
             return acc
           }
 
@@ -214,7 +217,7 @@ b
     ).encodeABI();
 
     batch.transactions.push({
-      "to": "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+      "to": PANCAKE_ADDRESS,
       "value": "0",
       "data": data,
       "contractMethod": null,
@@ -225,6 +228,7 @@ b
   }
 
   loading = false;
+  instance?.proxy?.$forceUpdate();
 }
 
 async function copy(mytext) {
@@ -253,12 +257,12 @@ outputs.push(
     {address: "0xf2ba89a6f9670459ed5aeefbd8db52be912228b8", percentage: "100"},
 )
 
-var saveData = (function () {
-  var a = document.createElement("a");
+let saveData = (function () {
+  let a = document.createElement("a");
   document.body.appendChild(a);
-  a.style = "display: none";
+  a.style.display = "none";
   return function (data, fileName) {
-    var json = JSON.stringify(data),
+    let json = JSON.stringify(data),
         blob = new Blob([json], {type: "octet/stream"}),
         url = window.URL.createObjectURL(blob);
     a.href = url;
