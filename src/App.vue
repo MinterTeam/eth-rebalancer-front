@@ -63,7 +63,10 @@ async function updateInputAmounts() {
       input.usd = "0";
     } else {
       input.amount = await (new web3.eth.Contract(erc20Abi, input.address)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
-      input.usd = await estimateUSDT(input.address, input.amount);
+      input.usd = "0"
+      if (input.amount !== "0") {
+        input.usd = await estimateUSDT(input.address, input.amount);
+      }
     }
   }
 
@@ -78,10 +81,16 @@ function checkAddress(address) {
 }
 
 watch(inputs, async (before, after) => {
+  if (loading.value) {
+    return
+  }
   await updateInputAmounts()
 })
 
 watch(walletAddress, async (before, after) => {
+  if (loading.value) {
+    return
+  }
   await updateInputAmounts()
 })
 
@@ -130,6 +139,10 @@ async function generateSellTx() {
     let input = inputs[i];
 
     if (!checkAddress(input.address)) {
+      continue
+    }
+
+    if (input.amount === "0") {
       continue
     }
 
@@ -200,6 +213,10 @@ async function generateBuyTx() {
     let output = outputs[i];
 
     if (!checkAddress(output.address)) {
+      continue
+    }
+
+    if (output.percentage === "0") {
       continue
     }
 
