@@ -148,7 +148,7 @@ async function generateSellTx() {
 
     let data = pancake.methods.swapExactTokensForTokens(
         res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(95).divn(100),
+        toBN(res.data.toTokenAmount).muln(98).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
           if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
             acc.push(WBNB_ADDRESS);
@@ -220,7 +220,7 @@ async function generateBuyTx() {
 
     let data = pancake.methods.swapExactTokensForTokens(
         res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(95).divn(100),
+        toBN(res.data.toTokenAmount).muln(98).divn(100),
         res.data.protocols[0].reduce((acc, protocol) => {
           if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
             acc.push(WBNB_ADDRESS);
