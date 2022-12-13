@@ -182,6 +182,7 @@ async function generateSellTx() {
 
   loading = false;
   instance?.proxy?.$forceUpdate();
+  save()
 }
 
 async function generateBuyTx() {
@@ -246,6 +247,7 @@ async function generateBuyTx() {
 
   loading = false;
   instance?.proxy?.$forceUpdate();
+  save();
 }
 
 async function copy(mytext) {
@@ -255,6 +257,10 @@ async function copy(mytext) {
   } catch($e) {
     alert('Cannot copy');
   }
+}
+
+function alert(m) {
+  window.alert(m)
 }
 
 function fromWei(wei, decimals = 6) {
@@ -308,13 +314,12 @@ function save() {
       <div class="columns">
         <div class="column">
           <h1 class="title is-5">Inputs</h1>
-          <div class="button mb-5" @click="newInput">New input asset</div>
           <div class="field has-addons" v-for="(input, i) in inputs">
             <p class="control is-expanded">
               <input :class="{'is-danger': !checkAddress(input.address)}" class="input" v-model="input.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
             </p>
-            <p class="control">
-              <a class="button is-static">{{ input.usd ? fromWei(input.usd, 2) : "..." }} USDT</a>
+            <p @click="alert(input.amount)" class="control">
+              <div class="button is-static">{{ input.usd ? fromWei(input.usd, 2) : "..." }} USDT</div>
             </p>
             <p class="control">
               <a class="button is-static">{{ input.percentage ? (input.percentage*100).toFixed(1) : "..." }}%</a>
@@ -324,10 +329,15 @@ function save() {
           <div class="notification">
             Total USDT: {{ fromWei(totalUSDT) }}
           </div>
+
+          <div class="buttons">
+            <div class="button" @click="newInput">New asset</div>
+            <button @click="generateSellTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading">Generate SELL transactions</button>
+          </div>
+
         </div>
         <div class="column">
           <h1 class="title is-5">Outputs</h1>
-          <div class="button mb-5" @click="newOutput">New output asset</div>
 
           <div class="field has-addons" v-for="(output, i) in outputs">
             <p class="control is-expanded">
@@ -340,21 +350,15 @@ function save() {
               <a class="button is-static">%</a>
             </p>
           </div>
-        </div>
-      </div>
-      <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
-        Output is not summing up to 100%
-      </div>
-      <div class="buttons">
-        <button @click="generateSellTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate SELL transactions</button>
-        <button @click="generateBuyTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate BUY transactions</button>
-      </div>
-      <div class="block pt-5">
-        <div v-if="!loading">
-          <button class="button" @click="save">Save to batch.json</button>
-          <br>
-          <br>
-          <pre>{{ JSON.stringify(batch, null, 2) }}</pre>
+
+          <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
+            Output is not summing up to 100%
+          </div>
+
+          <div class="buttons">
+            <div class="button" @click="newOutput">New asset</div>
+            <button @click="generateBuyTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate BUY transactions</button>
+          </div>
         </div>
       </div>
     </div>
