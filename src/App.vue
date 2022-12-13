@@ -117,8 +117,10 @@ let batch = reactive({
   "transactions": []
 });
 
-async function generateTx() {
+async function generateSellTx() {
   loading = true;
+
+  batch.transactions = [];
 
   while(txs.length > 0) {
     txs.pop();
@@ -178,6 +180,21 @@ async function generateTx() {
     txs.push(tx + "\n" + data)
   }
 
+  loading = false;
+  instance?.proxy?.$forceUpdate();
+}
+
+async function generateBuyTx() {
+  loading = true;
+
+  while(txs.length > 0) {
+    txs.pop();
+  }
+
+  let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+
+  batch.transactions = [];
+
   for (let i in outputs) {
     let output = outputs[i];
 
@@ -189,7 +206,7 @@ async function generateTx() {
       continue
     }
 
-    let amount = toBN(totalUSDT.value).muln(99).divn(100).muln(Number(output.percentage)).divn(100);
+    let amount = toBN(USDTBalance).muln(Number(output.percentage)).divn(100);
 
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
@@ -328,7 +345,10 @@ function save() {
       <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
         Output is not summing up to 100%
       </div>
-      <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate transactions</button>
+      <div class="buttons">
+        <button @click="generateSellTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate SELL transactions</button>
+        <button @click="generateBuyTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate BUY transactions</button>
+      </div>
       <div class="block pt-5">
         <div v-if="!loading">
           <button class="button" @click="save">Save to batch.json</button>
