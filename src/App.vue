@@ -13,7 +13,7 @@ const slippage = "0.5";
 const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 
-const rpcURL = 'https://bsc.getblock.io/a215c97d-a4d7-41b9-b94d-da3b1ac94c18/mainnet/'
+const rpcURL = 'https://bsc-dataseed1.binance.org/'
 const web3 = new Web3(rpcURL)
 
 let walletAddress = ref("0xE514c6F3b8C7EC9d523669aAb23Da4883f3eae8F");
@@ -81,14 +81,14 @@ function checkAddress(address) {
 }
 
 watch(inputs, async (before, after) => {
-  if (loading.value) {
+  if (loading.value || JSON.stringify(before) === JSON.stringify(after)) {
     return
   }
   await updateInputAmounts()
 })
 
 watch(walletAddress, async (before, after) => {
-  if (loading.value) {
+  if (loading.value || JSON.stringify(before) === JSON.stringify(after)) {
     return
   }
   await updateInputAmounts()
@@ -285,17 +285,18 @@ function fromWei(wei, decimals = 6) {
 }
 
 inputs.push(
-    {address: "0x4b0f1812e5df2a09796481ff14017e6005508003"},
-    {address: "0x55d398326f99059ff775485246999027b3197955"},
-    {address: "0x2170ed0880ac9a755fd29b2688956bd959f933f8"},
+    {address: "0x4B0F1812e5Df2A09796481Ff14017e6005508003"},
+    {address: "0x4338665CBB7B2485A8855A139b75D5e34AB0DB94"},
     {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
-    {address: "0xf2ba89a6f9670459ed5aeefbd8db52be912228b8"},
-    {address: "0x156ab3346823b651294766e23e6cf87254d68962"}
+    {address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8"},
+    {address: "0xf2Ba89A6f9670459ed5AeEfbd8Db52Be912228b8"}
 )
 
 outputs.push(
     {address: "0xf2ba89a6f9670459ed5aeefbd8db52be912228b8", percentage: "100"},
 )
+
+updateInputAmounts();
 
 let saveData = (function () {
   let a = document.createElement("a");
