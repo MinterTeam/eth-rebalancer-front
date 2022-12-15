@@ -251,6 +251,8 @@ async function generateSellTx() {
   save()
 }
 
+let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+
 async function generateBuyTx() {
   loading = true;
 
@@ -258,7 +260,7 @@ async function generateBuyTx() {
     txs.pop();
   }
 
-  let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+  USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
 
   batch.transactions = [];
 
@@ -423,7 +425,7 @@ const totalOutPercentage = computed(() => {
           <div class="field has-addons" v-for="(output, i) in outputs">
             <p class="control is-expanded">
               <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
-              <p class="help">Estimate: {{ output.amount.toFixed(5) }}, market: {{ output.marketAmount.toFixed(5) }}, slippage: {{ (output.slippage * 100).toFixed(2) }}</p>
+              <p class="help" v-if="output.amount && output.marketAmount && output.slippage">Estimate: {{ output.amount.toFixed(5) }}, market: {{ output.marketAmount.toFixed(5) }}, slippage: {{ (output.slippage * 100).toFixed(2) }}</p>
             </p>
             <p class="control">
               <input class="input" v-model="output.percentage" type="text" placeholder="%">
@@ -435,6 +437,10 @@ const totalOutPercentage = computed(() => {
 
           <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
             Output is not summing up to 100%
+          </div>
+
+          <div class="notification">
+            Total USDT on balance: {{ fromWei(USDTBalance) }}
           </div>
 
           <div class="buttons">
