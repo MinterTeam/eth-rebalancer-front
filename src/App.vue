@@ -42,6 +42,16 @@ function recalcInputPercentages() {
   inputs.sort((a, b) => b.percentage - a.percentage);
 }
 
+async function estimateAmount(address, amount) {
+  if (address.toLowerCase() === USDT_ADDRESS.toLowerCase()) {
+    return amount
+  }
+
+  let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+address+"&fromTokenAddress=0x55d398326f99059ff775485246999027b3197955&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true")
+
+  return res.data.toTokenAmount
+}
+
 async function estimateUSDT(address, amount) {
   if (address.toLowerCase() === USDT_ADDRESS.toLowerCase()) {
     return amount
@@ -50,6 +60,26 @@ async function estimateUSDT(address, amount) {
   let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress=0x55d398326f99059ff775485246999027b3197955&fromTokenAddress="+address+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true")
 
   return res.data.toTokenAmount
+}
+
+async function updateOutputAmounts() {
+  loading = true;
+
+  let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+
+  await Promise.all(outputs.map(async (output) => {
+    let contract = new web3.eth.Contract(erc20Abi, output.address);
+    let decimals = await contract.methods.decimals().call();
+
+    let usdAmount = toBN(USDTBalance).muln(Number(output.percentage)).divn(100);
+
+    let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+output.address+"&vs_currencies=usd")).data[output.address.toLowerCase()].usd;
+    output.marketAmount = Number(web3.utils.fromWei(usdAmount)) / Number(price);
+    output.amount = (await estimateAmount(output.address, usdAmount)) / 10 ** decimals;
+    output.slippage = Math.abs((output.amount - output.marketAmount) / output.amount);
+  }))
+
+  loading = false;
 }
 
 async function updateInputAmounts() {
@@ -62,10 +92,15 @@ async function updateInputAmounts() {
       input.amount = "0";
       input.usd = "0";
     } else {
-      input.amount = await (new web3.eth.Contract(erc20Abi, input.address)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+      let contract = new web3.eth.Contract(erc20Abi, input.address);
+
+      input.amount = await contract.methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
       input.usd = "0"
       if (input.amount !== "0") {
         input.usd = await estimateUSDT(input.address, input.amount);
+
+        let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+input.address+"&vs_currencies=usd")).data[input.address.toLowerCase()].usd;
+        input.marketUSD = input.amount / 10** (await contract.methods.decimals().call()) * Number(price);
       }
     }
   }
@@ -79,6 +114,14 @@ async function updateInputAmounts() {
 function checkAddress(address) {
   return web3.utils.isAddress(address)
 }
+
+watch(outputs, async (before, after) => {
+  if (loading.value) {
+    return
+  }
+
+  await updateOutputAmounts()
+})
 
 watch(inputs, async (before, after) => {
   if (loading.value || JSON.stringify(before) === JSON.stringify(after)) {
@@ -97,6 +140,16 @@ watch(walletAddress, async (before, after) => {
 const isOutputPercentageSumCorrect = computed(() => {
   let total = outputs.reduce((acc, output) => acc + Number(output.percentage), 0);
   return total === 100;
+});
+
+const totalUSDTmarket = computed(() => {
+  return inputs.reduce((acc, input) => {
+    if (input.marketUSD) {
+      return input.marketUSD + acc
+    }
+
+    return acc
+  }, 0);
 });
 
 const totalUSDT = computed(() => {
@@ -224,7 +277,7 @@ async function generateBuyTx() {
       continue
     }
 
-    let amount = toBN(USDTBalance).muln(Number(output.percentage)).divn(100);
+    let amount = toBN(USDTBalance).muln(Number(output.percentage)).divn(totalOutPercentage.value);
 
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
@@ -316,6 +369,15 @@ let saveData = (function () {
 function save() {
   saveData(batch, "batch.json");
 }
+
+const totalOutPercentage = computed(() => {
+  return outputs.reduce((acc, output) => {
+    if (output.slippage * 100 > 3) {
+      return acc
+    }
+    return acc + Number(output.percentage)
+  }, 0)
+})
 </script>
 
 <template>
@@ -345,7 +407,8 @@ function save() {
           </div>
 
           <div class="notification">
-            Total USDT: {{ fromWei(totalUSDT) }}
+            Total USDT (market): {{ totalUSDTmarket.toFixed(2) }} <br>
+            Total USDT (estimate): {{ fromWei(totalUSDT) }}
           </div>
 
           <div class="buttons">
@@ -360,6 +423,7 @@ function save() {
           <div class="field has-addons" v-for="(output, i) in outputs">
             <p class="control is-expanded">
               <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
+              <p class="help">Estimate: {{ output.amount.toFixed(5) }}, market: {{ output.marketAmount.toFixed(5) }}, slippage: {{ (output.slippage * 100).toFixed(2) }}</p>
             </p>
             <p class="control">
               <input class="input" v-model="output.percentage" type="text" placeholder="%">
