@@ -67,28 +67,44 @@ async function updateOutputAmounts() {
 
   let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
 
+  let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+outputs.reduce((acc, i) => {
+    if (web3.utils.isAddress(i.address)) {
+      acc.push(i.address)
+      return acc
+    }
+
+    return acc
+  }, []).join(",")+"&vs_currencies=usd"));
+
   await Promise.all(outputs.map(async (output) => {
     let contract = new web3.eth.Contract(erc20Abi, output.address);
     let decimals = await contract.methods.decimals().call();
 
     let usdAmount = toBN(USDTBalance).muln(Number(output.percentage * 100)).divn(100 * 100);
 
-    let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+output.address+"&vs_currencies=usd")).data[output.address.toLowerCase()].usd;
-    output.marketAmount = Number(web3.utils.fromWei(usdAmount)) / Number(price);
+    output.marketAmount = Number(web3.utils.fromWei(usdAmount)) / Number(price.data[output.address.toLowerCase()].usd);
     output.amount = (await estimateAmount(output.address, usdAmount)) / 10 ** decimals;
     output.slippage = (output.marketAmount - output.amount) / output.marketAmount;
     output.usdAmount = Number(web3.utils.fromWei(usdAmount));
   }))
 
   loading = false;
+  instance?.proxy?.$forceUpdate();
 }
 
 async function updateInputAmounts() {
   loading = true;
 
-  for (let i in inputs) {
-    let input = inputs[i];
+  let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+inputs.reduce((acc, i) => {
+    if (web3.utils.isAddress(i.address)) {
+      acc.push(i.address)
+      return acc
+    }
 
+    return acc
+  }, []).join(",")+"&vs_currencies=usd"));
+
+  await Promise.all(inputs.map(async (input) => {
     if (!web3.utils.isAddress(input.address)) {
       input.amount = "0";
       input.usd = "0";
@@ -100,11 +116,10 @@ async function updateInputAmounts() {
       if (input.amount !== "0") {
         input.usd = await estimateUSDT(input.address, input.amount);
 
-        let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+input.address+"&vs_currencies=usd")).data[input.address.toLowerCase()].usd;
-        input.marketUSD = input.amount / 10** (await contract.methods.decimals().call()) * Number(price);
+        input.marketUSD = input.amount / 10** (await contract.methods.decimals().call()) * Number(price.data[input.address.toLowerCase()].usd);
       }
     }
-  }
+  }));
 
   recalcInputPercentages();
 
