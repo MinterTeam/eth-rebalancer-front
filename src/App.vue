@@ -71,12 +71,13 @@ async function updateOutputAmounts() {
     let contract = new web3.eth.Contract(erc20Abi, output.address);
     let decimals = await contract.methods.decimals().call();
 
-    let usdAmount = toBN(USDTBalance).muln(Number(output.percentage)).divn(100);
+    let usdAmount = toBN(USDTBalance).muln(Number(output.percentage * 100)).divn(100 * 100);
 
     let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+output.address+"&vs_currencies=usd")).data[output.address.toLowerCase()].usd;
     output.marketAmount = Number(web3.utils.fromWei(usdAmount)) / Number(price);
     output.amount = (await estimateAmount(output.address, usdAmount)) / 10 ** decimals;
-    output.slippage = Math.abs((output.amount - output.marketAmount) / output.amount);
+    output.slippage = (output.marketAmount - output.amount) / output.marketAmount;
+    output.usdAmount = Number(web3.utils.fromWei(usdAmount));
   }))
 
   loading = false;
@@ -279,7 +280,7 @@ async function generateBuyTx() {
       continue
     }
 
-    let amount = toBN(USDTBalance).muln(Number(output.percentage)).divn(totalOutPercentage.value);
+    let amount = toBN(USDTBalance).muln(Number(output.percentage * 100)).divn(totalOutPercentage.value * 100);
 
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
@@ -344,12 +345,19 @@ inputs.push(
     {address: "0x4338665CBB7B2485A8855A139b75D5e34AB0DB94"},
     {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
     {address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8"},
-    {address: "0xf2Ba89A6f9670459ed5AeEfbd8Db52Be912228b8"}
+    {address: "0xf2Ba89A6f9670459ed5AeEfbd8Db52Be912228b8"},
+    {address: "0x55d398326f99059ff775485246999027b3197955"},
 )
 
-outputs.push(
-    {address: "0xf2ba89a6f9670459ed5aeefbd8db52be912228b8", percentage: "100"},
-)
+let res = await axios.get("https://recalibration-api.honee.app/v1/portfolio/last")
+
+for (let address in res.data.data.list) {
+  let percentage = res.data.data.list[address];
+
+  outputs.push(
+      {address: address, percentage: String(percentage)},
+  )
+}
 
 updateInputAmounts();
 
@@ -425,7 +433,7 @@ const totalOutPercentage = computed(() => {
           <div class="field has-addons" v-for="(output, i) in outputs">
             <p class="control is-expanded">
               <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
-              <p class="help" v-if="output.amount && output.marketAmount && output.slippage">Estimate: {{ output.amount.toFixed(5) }}, market: {{ output.marketAmount.toFixed(5) }}, slippage: {{ (output.slippage * 100).toFixed(2) }}</p>
+              <p class="help" v-if="output.amount && output.marketAmount && output.slippage">${{output.usdAmount.toFixed(2)}}, est: {{ output.amount.toFixed(5) }} ({{ output.marketAmount.toFixed(5) }}), pi: {{ (output.slippage * 100).toFixed(2) }}%</p>
             </p>
             <p class="control">
               <input class="input" v-model="output.percentage" type="text" placeholder="%">
