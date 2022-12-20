@@ -2,13 +2,13 @@
 import {computed, reactive, ref, watch} from "vue";
 import Web3 from 'web3';
 import erc20Abi from "@/erc20.abi";
-import pancakeAbi from "@/pancake.abi";
+import rebalancerAbi from "@/rebalancer.abi";
 import axios from "axios";
 import { getCurrentInstance } from 'vue'
 const instance = getCurrentInstance();
 
+const REBALANCER_ADDRESS = "0x2E7866BBDCEceD1793a175D55181CA2b629A5626";
 const USDT_ADDRESS = "0x55d398326f99059ff775485246999027b3197955";
-const PANCAKE_ADDRESS = "0x10ed43c718714eb63d5aa57b78b54704e256024e";
 const slippage = "0.5";
 const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
@@ -18,8 +18,9 @@ const web3 = new Web3(rpcURL)
 
 let walletAddress = ref("0xE514c6F3b8C7EC9d523669aAb23Da4883f3eae8F");
 let loading = ref(false);
+let nonce = ref(0);
 
-let pancake = await new web3.eth.Contract(pancakeAbi, PANCAKE_ADDRESS)
+let rebalancer = await new web3.eth.Contract(rebalancerAbi, REBALANCER_ADDRESS)
 
 let inputs = reactive([]);
 function newInput() {
@@ -178,8 +179,6 @@ const totalUSDT = computed(() => {
   }, web3.utils.toBN(0));
 });
 
-let txs = reactive([]);
-
 let batch = reactive({
   "version": "1.0",
   "chainId": "56",
@@ -195,23 +194,24 @@ let batch = reactive({
   "transactions": []
 });
 
-async function generateSellTx() {
+let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+
+async function generateTx() {
   loading = true;
 
   batch.transactions = [];
 
-  while(txs.length > 0) {
-    txs.pop();
-  }
+  let sellPaths = [];
+  let sellMinAmounts = [];
+  let buyPaths = [];
+  let buyShares = [];
+  let buyMaxPrices = [];
+  let buyMaxPriceDenom = "1" + "0".repeat(10);
 
   for (let i in inputs) {
     let input = inputs[i];
 
-    if (!checkAddress(input.address)) {
-      continue
-    }
-
-    if (input.amount === "0") {
+    if (!checkAddress(input.address) || input.amount === "0") {
       continue
     }
 
@@ -221,64 +221,27 @@ async function generateSellTx() {
 
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+USDT_ADDRESS+"&fromTokenAddress="+input.address+"&amount="+input.amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
-    let tx = input.address;
-
-    for (let j in res.data.protocols[0]) {
-      let protocol = res.data.protocols[0][j][0];
-      tx += " -> " + protocol.toTokenAddress;
-    }
-
-    let data = pancake.methods.swapExactTokensForTokens(
-        res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(98).divn(100),
-        res.data.protocols[0].reduce((acc, protocol) => {
-          if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
-            acc.push(WBNB_ADDRESS);
-            return acc
-          }
-          acc.push(protocol[0].toTokenAddress);
-          return acc
-        }, [input.address]),
-        walletAddress.value,
-        Math.floor(Date.now() / 1000) + 86400
-    ).encodeABI();
-
     batch.transactions.push({
       "to": input.address,
       "value": "0",
-      "data": (new web3.eth.Contract(erc20Abi, input.address)).methods.approve(PANCAKE_ADDRESS, res.data.fromTokenAmount).encodeABI(),
+      "data": (new web3.eth.Contract(erc20Abi, input.address)).methods.approve(REBALANCER_ADDRESS, res.data.fromTokenAmount).encodeABI(),
       "contractMethod": null,
       "contractInputsValues": null
     })
 
-    batch.transactions.push({
-      "to": PANCAKE_ADDRESS,
-      "value": "0",
-      "data": data,
-      "contractMethod": null,
-      "contractInputsValues": null
-    })
+    sellPaths.push(res.data.protocols[0].reduce((acc, protocol) => {
+      if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
+        acc.push(WBNB_ADDRESS);
+        return acc
+      }
+      acc.push(protocol[0].toTokenAddress);
+      return acc
+    }, [input.address]));
 
-    txs.push(tx + "\n" + data)
+    sellMinAmounts.push(toBN(res.data.toTokenAmount).muln(98).divn(100));
   }
 
-  loading = false;
-  instance?.proxy?.$forceUpdate();
-  save()
-}
-
-let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
-
-async function generateBuyTx() {
-  loading = true;
-
-  while(txs.length > 0) {
-    txs.pop();
-  }
-
-  USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
-
-  batch.transactions = [];
+  USDTBalance = sellMinAmounts.reduce((acc, i) => { return acc.add(toBN(i)) }, toBN(0)).add(toBN(await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call())).toString();
 
   for (let i in outputs) {
     let output = outputs[i];
@@ -296,42 +259,36 @@ async function generateBuyTx() {
     }
 
     let amount = toBN(USDTBalance).muln(Number(output.percentage * 100)).divn(totalOutPercentage.value * 100);
-
     let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress="+output.address+"&fromTokenAddress="+USDT_ADDRESS+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true");
 
-    let tx = USDT_ADDRESS;
+    buyPaths.push(res.data.protocols[0].reduce((acc, protocol) => {
+      if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
+        acc.push(WBNB_ADDRESS);
+        return acc
+      }
 
-    for (let j in res.data.protocols[0]) {
-      let protocol = res.data.protocols[0][j][0];
-      tx += " -> " + protocol.toTokenAddress;
-    }
+      acc.push(protocol[0].toTokenAddress);
+      return acc
+    }, [USDT_ADDRESS]))
 
-    let data = pancake.methods.swapExactTokensForTokens(
-        res.data.fromTokenAmount,
-        toBN(res.data.toTokenAmount).muln(98).divn(100),
-        res.data.protocols[0].reduce((acc, protocol) => {
-          if (protocol[0].toTokenAddress.toLowerCase() == ONEINCH_BASE_TOKEN) {
-            acc.push(WBNB_ADDRESS);
-            return acc
-          }
-
-          acc.push(protocol[0].toTokenAddress);
-          return acc
-        }, [USDT_ADDRESS]),
-        walletAddress.value,
-        Math.floor(Date.now() / 1000) + 86400
-    ).encodeABI();
-
-    batch.transactions.push({
-      "to": PANCAKE_ADDRESS,
-      "value": "0",
-      "data": data,
-      "contractMethod": null,
-      "contractInputsValues": null
-    })
-
-    txs.push(tx + "\n" + data)
+    buyShares.push(toBN("10000").muln(Number(output.percentage * 100)).divn(totalOutPercentage.value * 100));
+    buyMaxPrices.push(toBN(res.data.fromTokenAmount).mul(toBN(buyMaxPriceDenom)).div(toBN(res.data.toTokenAmount)).muln(98).divn(100));
   }
+
+  batch.transactions.push({
+    "to": REBALANCER_ADDRESS,
+    "value": "0",
+    "data": rebalancer.methods.call(
+        USDT_ADDRESS,
+        sellPaths,
+        sellMinAmounts,
+        buyPaths,
+        buyMaxPrices,
+        buyMaxPriceDenom,
+        buyShares,
+        nonce.value
+    ).encodeABI()
+  })
 
   loading = false;
   instance?.proxy?.$forceUpdate();
@@ -356,12 +313,10 @@ function fromWei(wei, decimals = 6) {
 }
 
 inputs.push(
-    {address: "0x4B0F1812e5Df2A09796481Ff14017e6005508003"},
-    {address: "0x4338665CBB7B2485A8855A139b75D5e34AB0DB94"},
-    {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
-    {address: "0x2170Ed0880ac9A755fd29B2688956BD959F933F8"},
-    {address: "0xf2Ba89A6f9670459ed5AeEfbd8Db52Be912228b8"},
     {address: "0x55d398326f99059ff775485246999027b3197955"},
+    {address: "0x76a797a59ba2c17726896976b7b3747bfd1d220f"},
+    {address: "0xba2ae424d960c26247dd6c32edc70b295c744c43"},
+    {address: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
 )
 
 let res = await axios.get("https://recalibration-api.honee.app/v1/portfolio/last")
@@ -438,7 +393,6 @@ const totalOutPercentage = computed(() => {
 
           <div class="buttons">
             <div class="button" @click="newInput">New asset</div>
-            <button @click="generateSellTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading">Generate SELL transactions</button>
           </div>
 
         </div>
@@ -462,16 +416,13 @@ const totalOutPercentage = computed(() => {
             Output is not summing up to 100%
           </div>
 
-          <div class="notification">
-            Total USDT on balance: {{ fromWei(USDTBalance) }}
-          </div>
-
           <div class="buttons">
             <div class="button" @click="newOutput">New asset</div>
-            <button @click="generateBuyTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="!isOutputPercentageSumCorrect || loading">Generate BUY transactions</button>
           </div>
         </div>
       </div>
+
+      <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading">Generate transactions batch</button>
     </div>
   </section>
 </template>
