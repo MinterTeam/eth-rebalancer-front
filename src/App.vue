@@ -66,7 +66,7 @@ async function estimateUSDT(address, amount) {
 async function updateOutputAmounts() {
   loading = true;
 
-  let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+  let USDTBalance = totalUSDT.value;
 
   let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+outputs.reduce((acc, i) => {
     if (web3.utils.isAddress(i.address)) {
