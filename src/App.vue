@@ -7,7 +7,7 @@ import axios from "axios";
 import { getCurrentInstance } from 'vue'
 const instance = getCurrentInstance();
 
-const REBALANCER_ADDRESS = "0x27D5d51B25327c7A7668a37Cb23a60302E76D134";
+const REBALANCER_ADDRESS = "0xc78Af8c0CFcC2489E70353f5c2f1863d9787B9BD";
 const USDT_ADDRESS = "0x55d398326f99059ff775485246999027b3197955";
 const slippage = "0.5";
 const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -310,7 +310,6 @@ function fromWei(wei, decimals = 6) {
 
 inputs.push(
     {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
-    {address: "0x55d398326f99059ff775485246999027b3197955"},
     {address: "0xba2ae424d960c26247dd6c32edc70b295c744c43"},
     {address: "0x4b0f1812e5df2a09796481ff14017e6005508003"},
     {address: "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd"},
