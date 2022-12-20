@@ -7,7 +7,7 @@ import axios from "axios";
 import { getCurrentInstance } from 'vue'
 const instance = getCurrentInstance();
 
-const REBALANCER_ADDRESS = "0x65Be3b55094e306391523f1b49A48694c305DC56";
+const REBALANCER_ADDRESS = "0x27D5d51B25327c7A7668a37Cb23a60302E76D134";
 const USDT_ADDRESS = "0x55d398326f99059ff775485246999027b3197955";
 const slippage = "0.5";
 const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -248,6 +248,9 @@ async function generateTx() {
     }
 
     if (output.address.toLowerCase() === USDT_ADDRESS) {
+      buyPaths.push([USDT_ADDRESS]);
+      buyShares.push(0);
+      buyMaxPrices.push(0);
       continue
     }
 
