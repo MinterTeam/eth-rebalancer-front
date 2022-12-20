@@ -7,7 +7,7 @@ import axios from "axios";
 import { getCurrentInstance } from 'vue'
 const instance = getCurrentInstance();
 
-const REBALANCER_ADDRESS = "0x2E7866BBDCEceD1793a175D55181CA2b629A5626";
+const REBALANCER_ADDRESS = "0x65Be3b55094e306391523f1b49A48694c305DC56";
 const USDT_ADDRESS = "0x55d398326f99059ff775485246999027b3197955";
 const slippage = "0.5";
 const ONEINCH_BASE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -199,6 +199,16 @@ async function generateTx() {
     }
 
     if (input.address.toLowerCase() === USDT_ADDRESS) {
+      batch.transactions.push({
+        "to": input.address,
+        "value": "0",
+        "data": (new web3.eth.Contract(erc20Abi, input.address)).methods.approve(REBALANCER_ADDRESS, input.amount).encodeABI(),
+        "contractMethod": null,
+        "contractInputsValues": null
+      })
+
+      sellPaths.push([USDT_ADDRESS]);
+      sellMinAmounts.push(0);
       continue
     }
 
