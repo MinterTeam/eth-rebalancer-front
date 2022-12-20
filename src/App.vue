@@ -1,5 +1,5 @@
 <script setup>
-import {computed, reactive, ref, watch} from "vue";
+import {computed, reactive, ref} from "vue";
 import Web3 from 'web3';
 import erc20Abi from "@/erc20.abi";
 import rebalancerAbi from "@/rebalancer.abi";
@@ -61,6 +61,11 @@ async function estimateUSDT(address, amount) {
   let res = await axios.get("https://api.1inch.io/v5.0/56/swap?protocols=PANCAKESWAP_V2&toTokenAddress=0x55d398326f99059ff775485246999027b3197955&fromTokenAddress="+address+"&amount="+amount+"&fromAddress="+walletAddress.value+"&slippage="+slippage+"&disableEstimate=true")
 
   return res.data.toTokenAmount
+}
+
+async function update() {
+  await updateInputAmounts();
+  await updateOutputAmounts();
 }
 
 async function updateOutputAmounts() {
@@ -131,28 +136,6 @@ async function updateInputAmounts() {
 function checkAddress(address) {
   return web3.utils.isAddress(address)
 }
-
-watch(outputs, async (before, after) => {
-  if (loading.value) {
-    return
-  }
-
-  await updateOutputAmounts()
-})
-
-watch(inputs, async (before, after) => {
-  if (loading.value || JSON.stringify(before) === JSON.stringify(after)) {
-    return
-  }
-  await updateInputAmounts()
-})
-
-watch(walletAddress, async (before, after) => {
-  if (loading.value || JSON.stringify(before) === JSON.stringify(after)) {
-    return
-  }
-  await updateInputAmounts()
-})
 
 const isOutputPercentageSumCorrect = computed(() => {
   let total = outputs.reduce((acc, output) => acc + Number(output.percentage), 0);
@@ -313,10 +296,12 @@ function fromWei(wei, decimals = 6) {
 }
 
 inputs.push(
+    {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
     {address: "0x55d398326f99059ff775485246999027b3197955"},
-    {address: "0x76a797a59ba2c17726896976b7b3747bfd1d220f"},
     {address: "0xba2ae424d960c26247dd6c32edc70b295c744c43"},
-    {address: "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"}
+    {address: "0x4b0f1812e5df2a09796481ff14017e6005508003"},
+    {address: "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd"},
+    {address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"}
 )
 
 let res = await axios.get("https://recalibration-api.honee.app/v1/portfolio/last")
@@ -328,8 +313,6 @@ for (let address in res.data.data.list) {
       {address: address, percentage: String(percentage)},
   )
 }
-
-updateInputAmounts();
 
 let saveData = (function () {
   let a = document.createElement("a");
@@ -370,6 +353,8 @@ const totalOutPercentage = computed(() => {
           <input class="input" :class="{'is-danger': !checkAddress(walletAddress)}" type="text" placeholder="0x" v-model="walletAddress">
         </div>
       </div>
+
+      <button class="button is-primary mb-5" :class="{'is-loading': loading}" @click="update">Recalculate</button>
 
       <div class="columns">
         <div class="column">
