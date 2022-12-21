@@ -105,6 +105,7 @@ async function updateOutputAmounts() {
 
     output.marketAmount = Number(web3.utils.fromWei(usdAmount)) / Number(price.data[output.address.toLowerCase()].usd);
     output.amount = (await estimateAmount(output.address, usdAmount)) / 10 ** decimals;
+    output.symbol = await contract.methods.symbol().call();
     output.slippage = (output.marketAmount - output.amount) / output.marketAmount;
     output.usdAmount = Number(web3.utils.fromWei(usdAmount));
   }))
@@ -128,10 +129,11 @@ async function updateInputAmounts() {
       let contract = new web3.eth.Contract(erc20Abi, input.address);
 
       input.amount = await contract.methods.balanceOf(web3.utils.toChecksumAddress(walletAddress.value)).call();
+      input.symbol = await contract.methods.symbol().call();
+      input.decimals = await contract.methods.decimals().call();
       input.usd = "0"
       if (input.amount !== "0") {
         input.usd = await estimateUSDT(input.address, input.amount);
-
         input.marketUSD = input.amount / 10** (await contract.methods.decimals().call()) * Number(price.data[input.address.toLowerCase()].usd);
       }
     }
@@ -311,11 +313,14 @@ function alert(m) {
   window.alert(m)
 }
 
-function fromWei(wei, decimals = 6) {
+function fromWei(wei, fixed = 6, decimals = 18) {
+  if (decimals != 18) {
+    return (wei / 10 ** decimals).toFixed(fixed)
+  }
   return Number(Number(web3.utils.fromWei(wei, 'ether')).toFixed(decimals))
 }
 
-let lastNonce = await rebalancer.methods.nonces(walletAddress.value).call();
+let lastNonce = ref(await rebalancer.methods.nonces(walletAddress.value).call());
 if (lastNonce == 0) { // todo: remove this condition
   lastNonce = 2217;
 }
@@ -380,43 +385,50 @@ const totalOutPercentage = computed(() => {
 
       <div class="columns">
         <div class="column">
-          <h1 class="title is-5">Inputs</h1>
-          <div class="field has-addons" v-for="(input, i) in inputs">
-            <p class="control is-expanded">
-              <input :class="{'is-danger': !checkAddress(input.address)}" class="input" v-model="input.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
-            </p>
-            <p @click="alert(input.amount)" class="control">
-              <div class="button is-static">{{ input.usd ? fromWei(input.usd, 2) : "..." }} USDT</div>
-            </p>
-            <p class="control">
-              <a class="button is-static">{{ input.percentage ? (input.percentage*100).toFixed(1) : "..." }}%</a>
-            </p>
-          </div>
-
-          <div class="notification">
-            Total USDT (market): {{ totalUSDTmarket.toFixed(2) }} <br>
-            Total USDT (estimate): {{ fromWei(totalUSDT) }}
+          <h1 class="title is-5">Inputs (ID: {{ lastNonce }})</h1>
+          <div v-for="(input, i) in inputs" class="mb-2">
+            <div class="field has-addons mb-0">
+              <p v-if="input.symbol" class="control">
+               <div class="button is-static">{{ input.symbol }}</div>
+              </p>
+              <p class="control is-expanded">
+                <input :class="{'is-danger': !checkAddress(input.address)}" class="input" v-model="input.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
+              </p>
+              <p class="control">
+                <a class="button is-static">{{ input.percentage ? (input.percentage*100).toFixed(1) : "..." }}%</a>
+              </p>
+            </div>
+            <p class="help mb-2" v-if="input.usd">${{fromWei(input.usd, 2)}}, amount: {{ fromWei(input.amount, 18, input.decimals) }}</p>
           </div>
 
           <div class="buttons">
             <div class="button" @click="newInput">New asset</div>
           </div>
 
+          <div class="notification">
+            Total USDT (market): {{ totalUSDTmarket.toFixed(2) }} <br>
+            Total USDT (estimate): {{ fromWei(totalUSDT) }}
+          </div>
         </div>
         <div class="column">
-          <h1 class="title is-5">Outputs</h1>
+          <h1 class="title is-5">Outputs (ID: {{nonce}})</h1>
 
-          <div class="field has-addons" v-for="(output, i) in outputs">
-            <p class="control is-expanded">
-              <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
-              <p class="help" v-if="output.amount && output.marketAmount && output.slippage">${{output.usdAmount.toFixed(2)}}, est: {{ output.amount.toFixed(5) }} ({{ output.marketAmount.toFixed(5) }}), pi: {{ (output.slippage * 100).toFixed(2) }}%</p>
-            </p>
-            <p class="control">
-              <input class="input" v-model="output.percentage" type="text" placeholder="%">
-            </p>
-            <p class="control">
-              <a class="button is-static">%</a>
-            </p>
+          <div v-for="(output, i) in outputs" class="mb-2">
+            <div class="field has-addons mb-0">
+              <p v-if="output.symbol" class="control">
+              <div class="button is-static">{{ output.symbol }}</div>
+              </p>
+              <p class="control is-expanded">
+                <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
+              </p>
+              <p style="width: 50px" class="control">
+                <input class="input" v-model="output.percentage" type="text" placeholder="%">
+              </p>
+              <p class="control">
+                <a class="button is-static">%</a>
+              </p>
+            </div>
+            <p class="help" v-if="output.amount && output.marketAmount && output.slippage">${{output.usdAmount.toFixed(2)}}, est: {{ output.amount.toFixed(5) }} ({{ output.marketAmount.toFixed(5) }}), pi: {{ (output.slippage * 100).toFixed(2) }}%</p>
           </div>
 
           <div v-if="!isOutputPercentageSumCorrect" class="notification is-danger">
@@ -433,7 +445,6 @@ const totalOutPercentage = computed(() => {
         <button class="button is-primary" :class="{'is-loading': loading}" @click="update" v-if="!calculated">Recalculate</button>
         <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading || !calculated">Generate transactions batch</button>
       </div>
-
-      </div>
+    </div>
   </section>
 </template>
