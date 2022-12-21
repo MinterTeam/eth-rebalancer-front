@@ -1,5 +1,5 @@
 <script setup>
-import {computed, reactive, ref, watch} from "vue";
+import {computed, onMounted, reactive, ref, watch} from "vue";
 import Web3 from 'web3';
 import erc20Abi from "@/erc20.abi";
 import rebalancerAbi from "@/rebalancer.abi";
@@ -388,6 +388,10 @@ function deleteInput(input) {
 function deleteOutput(output) {
   outputs.splice(outputs.indexOf(output), 1)
 }
+
+onMounted(() => {
+  update();
+})
 </script>
 
 <template>
