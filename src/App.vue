@@ -40,7 +40,7 @@ function toBN(number) {
 function recalcInputPercentages() {
   let total = inputs.reduce((acc, input) => acc + fromWei(input.usd), 0);
 
-  inputs.forEach(input => input.percentage = (fromWei(input.usd) / total).toFixed(2));
+  inputs.forEach(input => input.percentage = (fromWei(input.usd) / total).toFixed(4));
   inputs.sort((a, b) => b.percentage - a.percentage);
 }
 
@@ -98,6 +98,16 @@ async function updateOutputAmounts() {
   }, []).join(",")+"&vs_currencies=usd"));
 
   await Promise.all(outputs.map(async (output) => {
+    if (!web3.utils.isAddress(output.address)) {
+      output.usd = null;
+      output.marketAmount = null;
+      output.amount = null;
+      output.symbol = null;
+      output.slippage = null;
+      output.usdAmount = null;
+      return
+    }
+
     let contract = new web3.eth.Contract(erc20Abi, output.address);
     let decimals = await contract.methods.decimals().call();
 
@@ -109,6 +119,8 @@ async function updateOutputAmounts() {
     output.slippage = (output.marketAmount - output.amount) / output.marketAmount;
     output.usdAmount = Number(web3.utils.fromWei(usdAmount));
   }))
+
+  outputs.sort((a, b) => b.percentage - a.percentage);
 }
 
 async function updateInputAmounts() {
@@ -317,10 +329,10 @@ function fromWei(wei, fixed = 6, decimals = 18) {
   if (decimals != 18) {
     return (wei / 10 ** decimals).toFixed(fixed)
   }
-  return Number(Number(web3.utils.fromWei(wei, 'ether')).toFixed(decimals))
+  return Number(Number(web3.utils.fromWei(wei, 'ether')).toFixed(fixed))
 }
 
-let lastNonce = ref(await rebalancer.methods.nonces(walletAddress.value).call());
+let lastNonce = await rebalancer.methods.nonces(walletAddress.value).call();
 if (lastNonce == 0) { // todo: remove this condition
   lastNonce = 2217;
 }
@@ -370,6 +382,14 @@ const totalOutPercentage = computed(() => {
     return acc + Number(output.percentage)
   }, 0)
 })
+
+function deleteInput(input) {
+  inputs.splice(inputs.indexOf(input), 1)
+}
+
+function deleteOutput(output) {
+  outputs.splice(outputs.indexOf(output), 1)
+}
 </script>
 
 <template>
@@ -396,6 +416,11 @@ const totalOutPercentage = computed(() => {
               </p>
               <p class="control">
                 <a class="button is-static">{{ input.percentage ? (input.percentage*100).toFixed(1) : "..." }}%</a>
+              </p>
+              <p class="control">
+                <a @click="deleteInput(input)" class="button is-static">
+                  <button class="delete is-small"></button>
+                </a>
               </p>
             </div>
             <p class="help mb-2" v-if="input.usd">${{fromWei(input.usd, 2)}}, amount: {{ fromWei(input.amount, 18, input.decimals) }}</p>
@@ -426,6 +451,11 @@ const totalOutPercentage = computed(() => {
               </p>
               <p class="control">
                 <a class="button is-static">%</a>
+              </p>
+              <p class="control">
+                <a @click="deleteOutput(output)" class="button is-static">
+                  <button class="delete is-small"></button>
+                </a>
               </p>
             </div>
             <p class="help" v-if="output.amount && output.marketAmount && output.slippage">${{output.usdAmount.toFixed(2)}}, est: {{ output.amount.toFixed(5) }} ({{ output.marketAmount.toFixed(5) }}), pi: {{ (output.slippage * 100).toFixed(2) }}%</p>
