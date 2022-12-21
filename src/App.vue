@@ -1,5 +1,5 @@
 <script setup>
-import {computed, reactive, ref} from "vue";
+import {computed, reactive, ref, watch} from "vue";
 import Web3 from 'web3';
 import erc20Abi from "@/erc20.abi";
 import rebalancerAbi from "@/rebalancer.abi";
@@ -18,6 +18,7 @@ const web3 = new Web3(rpcURL)
 
 let walletAddress = ref("0xE514c6F3b8C7EC9d523669aAb23Da4883f3eae8F");
 let loading = ref(false);
+let calculated = ref(false);
 let nonce = ref(0);
 
 let rebalancer = await new web3.eth.Contract(rebalancerAbi, REBALANCER_ADDRESS);
@@ -64,13 +65,27 @@ async function estimateUSDT(address, amount) {
 }
 
 async function update() {
+  loading = true;
   await updateInputAmounts();
   await updateOutputAmounts();
+  loading = false;
+  calculated = true;
+  instance?.proxy?.$forceUpdate();
 }
 
-async function updateOutputAmounts() {
-  loading = true;
+watch(inputs, () => {
+  calculated = false;
+})
 
+watch(outputs, () => {
+  calculated = false;
+})
+
+watch(walletAddress, () => {
+  calculated = false;
+})
+
+async function updateOutputAmounts() {
   let USDTBalance = totalUSDT.value;
 
   let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+outputs.reduce((acc, i) => {
@@ -93,14 +108,9 @@ async function updateOutputAmounts() {
     output.slippage = (output.marketAmount - output.amount) / output.marketAmount;
     output.usdAmount = Number(web3.utils.fromWei(usdAmount));
   }))
-
-  loading = false;
-  instance?.proxy?.$forceUpdate();
 }
 
 async function updateInputAmounts() {
-  loading = true;
-
   let price = (await axios.get("https://api.coingecko.com/api/v3/simple/token_price/binance-smart-chain?contract_addresses="+inputs.reduce((acc, i) => {
     if (web3.utils.isAddress(i.address)) {
       acc.push(i.address)
@@ -128,9 +138,6 @@ async function updateInputAmounts() {
   }));
 
   recalcInputPercentages();
-
-  loading = false;
-  instance?.proxy?.$forceUpdate();
 }
 
 function checkAddress(address) {
@@ -371,8 +378,6 @@ const totalOutPercentage = computed(() => {
         </div>
       </div>
 
-      <button class="button is-primary mb-5" :class="{'is-loading': loading}" @click="update">Recalculate</button>
-
       <div class="columns">
         <div class="column">
           <h1 class="title is-5">Inputs</h1>
@@ -424,7 +429,11 @@ const totalOutPercentage = computed(() => {
         </div>
       </div>
 
-      <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading">Generate transactions batch</button>
-    </div>
+      <div class="buttons">
+        <button class="button is-primary" :class="{'is-loading': loading}" @click="update" v-if="!calculated">Recalculate</button>
+        <button @click="generateTx" class="button is-primary" :class="{'is-loading': loading}" :disabled="loading || !calculated">Generate transactions batch</button>
+      </div>
+
+      </div>
   </section>
 </template>
