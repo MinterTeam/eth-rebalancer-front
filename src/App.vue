@@ -19,7 +19,6 @@ const web3 = new Web3(rpcURL)
 let walletAddress = ref("0xE514c6F3b8C7EC9d523669aAb23Da4883f3eae8F");
 let loading = ref(false);
 let calculated = ref(false);
-let nonce = ref(0);
 
 let rebalancer = await new web3.eth.Contract(rebalancerAbi, REBALANCER_ADDRESS);
 
@@ -202,6 +201,7 @@ let USDTBalance = await (new web3.eth.Contract(erc20Abi, USDT_ADDRESS)).methods.
 
 async function generateTx() {
   loading = true;
+  instance?.proxy?.$forceUpdate();
 
   batch.transactions = [];
 
@@ -303,7 +303,7 @@ async function generateTx() {
         buyMaxPrices,
         buyMaxPriceDenom,
         buyShares,
-        nonce.value
+        nonce
     ).encodeABI()
   })
 
@@ -344,7 +344,7 @@ for (let address in previous.data.data.list) {
 }
 
 let res = await axios.get("https://recalibration-api.honee.app/v1/portfolio/last")
-
+let nonce = res.data.data.id;
 for (let address in res.data.data.list) {
   let percentage = res.data.data.list[address];
 
@@ -352,8 +352,6 @@ for (let address in res.data.data.list) {
       {address: address, percentage: String(percentage)},
   )
 }
-
-nonce = res.data.data.id;
 
 let saveData = (function () {
   let a = document.createElement("a");
