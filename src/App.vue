@@ -20,7 +20,7 @@ let walletAddress = ref("0xE514c6F3b8C7EC9d523669aAb23Da4883f3eae8F");
 let loading = ref(false);
 let nonce = ref(0);
 
-let rebalancer = await new web3.eth.Contract(rebalancerAbi, REBALANCER_ADDRESS)
+let rebalancer = await new web3.eth.Contract(rebalancerAbi, REBALANCER_ADDRESS);
 
 let inputs = reactive([]);
 function newInput() {
@@ -308,13 +308,16 @@ function fromWei(wei, decimals = 6) {
   return Number(Number(web3.utils.fromWei(wei, 'ether')).toFixed(decimals))
 }
 
-inputs.push(
-    {address: "0x76A797A59Ba2C17726896976B7B3747BfD1d220f"},
-    {address: "0xba2ae424d960c26247dd6c32edc70b295c744c43"},
-    {address: "0x4b0f1812e5df2a09796481ff14017e6005508003"},
-    {address: "0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd"},
-    {address: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"}
-)
+let lastNonce = await rebalancer.methods.nonces(walletAddress.value).call();
+if (lastNonce == 0) { // todo: remove this condition
+  lastNonce = 2217;
+}
+let previous = await axios.get("https://recalibration-api.honee.app/v1/portfolio/" + lastNonce);
+for (let address in previous.data.data.list) {
+  inputs.push(
+      {address: address},
+  )
+}
 
 let res = await axios.get("https://recalibration-api.honee.app/v1/portfolio/last")
 
@@ -325,6 +328,8 @@ for (let address in res.data.data.list) {
       {address: address, percentage: String(percentage)},
   )
 }
+
+nonce = res.data.data.id;
 
 let saveData = (function () {
   let a = document.createElement("a");
