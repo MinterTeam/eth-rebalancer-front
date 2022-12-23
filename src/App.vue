@@ -410,9 +410,9 @@ onMounted(() => {
           <h1 class="title is-5">Inputs (ID: {{ lastNonce }})</h1>
           <div v-for="(input, i) in inputs" class="mb-2">
             <div class="field has-addons mb-0">
-              <p v-if="input.symbol" class="control">
+              <div v-if="input.symbol" class="control">
                <div class="button is-static">{{ input.symbol }}</div>
-              </p>
+              </div>
               <p class="control is-expanded">
                 <input :class="{'is-danger': !checkAddress(input.address)}" class="input" v-model="input.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
               </p>
@@ -442,9 +442,9 @@ onMounted(() => {
 
           <div v-for="(output, i) in outputs" class="mb-2">
             <div class="field has-addons mb-0">
-              <p v-if="output.symbol" class="control">
-              <div class="button is-static">{{ output.symbol }}</div>
-              </p>
+              <div v-if="output.symbol" class="control">
+                <div class="button is-static">{{ output.symbol }}</div>
+              </div>
               <p class="control is-expanded">
                 <input class="input" v-model="output.address" type="text" :placeholder="'Asset '+(i+1)+' (0x...)'">
               </p>
